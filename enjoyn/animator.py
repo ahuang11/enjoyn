@@ -1,41 +1,47 @@
-import shlex
-from abc import ABC
-from pathlib import Path
-from typing import (
-    TYPE_CHECKING,
-    Optional,
-    Callable,
-    Tuple,
-    Union,
-    List,
-    Dict,
-    Any,
-    Iterable,
-)
-from typing_extensions import Self
-from tempfile import TemporaryDirectory
+"""
+This module contains animators that join images into the desired animation format.
+"""
 
+import inspect
+import shlex
+import subprocess
 import uuid
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from types import GeneratorType
+from typing import TYPE_CHECKING, Any, Dict, Iterable, Optional, Tuple, Union
+
 import dask.bag
 import dask.delayed
-from pydantic import BaseModel
+import dask.diagnostics
 import imageio.v3 as iio
 import numpy as np
 import pygifsicle
-import subprocess
+from pydantic import BaseModel, Extra, validator
 
 if TYPE_CHECKING:
     from dask.distributed import Client
+    from typing_extensions import Self
+
+from .preprocessor import Preprocessor
 
 
-class Preprocessor(BaseModel):
+class BaseAnimator(BaseModel, extra=Extra.allow):
+    """
+    The base animator containing most of the common inputs and methods used in
+    other animators inheriting from this. Note, this should not to be used directly.
 
-    func: Callable
-    args: Tuple[Any] = ()
-    kwds: Optional[Dict[str, Any]] = None
-
-
-class BaseAnimator(BaseModel, ABC):
+    Attributes:
+        items: The items to animate; can be file names, bytes, numpy arrays, or
+            anything that can be read with `imageio.imread`. If the `preprocessor` is
+            provided, then the items can be anything the preprocessor function accepts.
+        output_path: The path to save the output animation to.
+        preprocessor: The preprocessor to apply to each item. More info can be
+            found within the `preprocessor` model's docstring.
+        imwrite_kwds: The `imageio.imwrite` keywords to use.
+        scratch_directory: The base directory to create the temporary directory
+            for intermediary files.
+    """
 
     items: Iterable[Any]
     output_path: Union[Path, str]
@@ -44,22 +50,40 @@ class BaseAnimator(BaseModel, ABC):
     imwrite_kwds: Optional[Dict[str, Any]] = None
     scratch_directory: Optional[Union[Path, str]] = None
 
+    _output_extension: Optional[str] = None
     _temporary_directory: Optional[Path] = None
     _debug: bool = False
 
-    """
-    Base animator class that holds most of the
-    common methods that other animators use.
+    @validator("items", pre=True, always=True)
+    def _disallow_items_generator(cls, value):
+        """
+        Prevent `items` from being a `generator` type.
+        """
+        if isinstance(value, GeneratorType) or inspect.isgeneratorfunction(value):
+            raise ValueError("Input `items` cannot be a generator")
+        return value
 
-    Attributes:
-        ...
-    
-    Returns:
-        ...
-    """
+    @validator("items", pre=True, always=True)
+    def _check_items_length(cls, value):
+        """
+        Prevent having only a single object in `items`.
+        """
+        if len(value) == 1:
+            raise ValueError("Must have more than one object in `items`")
+        return value
 
-    class Config:
-        extra = "allow"
+    @validator("output_path", pre=True, always=True)
+    def _check_extension_matches(cls, value):
+        """
+        Prevent having only a single object in `items`.
+        """
+        suffix = Path(value).suffix
+        if suffix != cls._output_extension:
+            raise ValueError(
+                f"The output path must end in '{cls._output_extension}' "
+                f"to use {cls.__name__}, but got '{suffix}'"
+            )
+        return value
 
     @classmethod
     def from_directory(
@@ -67,26 +91,52 @@ class BaseAnimator(BaseModel, ABC):
         directory: Union[Path, str],
         pattern: str = "*.*",
         limit: int = None,
-        **source_kwds,
-    ) -> Self:
+        **animator_kwds,
+    ) -> "Self":
+        """
+        Searches a directory for file names that match the pattern and uses
+        them as `items` in the animator.
+
+        Args:
+            directory: The directory to retrieve the file names.
+            pattern: The pattern to subset the file names within the directory.
+            limit: The maximum number of file names to use.
+            **source_kwds: Additional keywords to pass to use for the animator.
+
+        Returns:
+            An instantiated animator class.
+
+        Examples:
+            Instantiate `GifAnimator` using PNG files from the`imgs/`:
+            ```python
+            gif_animator = GifAnimator.from_directory(
+                directory="imgs/",
+                pattern="*.png",
+                output_path="animation.gif"
+            )
+            ```
+        """
         directory = Path(directory)
-        if not directory.exists():  # TODO: move to root validation
+
+        if not directory.exists():
             raise ValueError(f"`{directory}` does not exist")
         elif not directory.is_dir():
             raise ValueError(f"`{directory}` must be a directory")
+
         file_paths = sorted(path for path in directory.glob(pattern) if path.is_file())
         if limit:
             file_paths = file_paths[:limit]
-        return cls(items=file_paths, **source_kwds)
+        return cls(items=file_paths, **animator_kwds)
 
     def _serialize_item(self, item: Any) -> np.ndarray:
+        """
+        Applies the preprocessor to the item and serialize as a `np.array`.
+        """
         if self.preprocessor:
             args = self.preprocessor.args
             kwds = self.preprocessor.kwds or {}
-            item = self.preprocessor.func(
-                item, *args, **kwds
-            )
-            valid_types = (Path, str, bytes)
+            item = self.preprocessor.func(item, *args, **kwds)
+            valid_types = (Path, str, bytes, np.ndarray)
             if not isinstance(item, valid_types):
                 callable_name = self.preprocessor.func.__name__
                 return_type = type(item).__name__
@@ -95,32 +145,51 @@ class BaseAnimator(BaseModel, ABC):
                 )
                 raise TypeError(
                     f"The '{callable_name}' callable returned an object with "
-                    f"`{return_type}` type; update '{callable_name}' so that it returns "
-                    f"an object with either {valid_types_names} type instead"
+                    f"`{return_type}` type; update '{callable_name}' so the "
+                    f"returned object is either {valid_types_names} type"
                 )
 
         image = iio.imread(item) if not isinstance(item, np.ndarray) else item
         return image
 
     def _animate_images(self, partitioned_items: Iterable[Any]) -> Path:
+        """
+        Serializes items in the partition and creates an incomplete animation.
+        """
         images = [self._serialize_item(item) for item in partitioned_items]
-        intermediate_path = (
-            self._temporary_directory / f"{uuid.uuid1()}{self.output_extension}"
-        )
-        imwrite_kwds = self.imwrite_kwds or {}
-        iio.imwrite(
-            intermediate_path, images, extension=self.output_extension, **imwrite_kwds
-        )
+        try:
+            intermediate_path = (
+                self._temporary_directory / f"{uuid.uuid1()}{self._output_extension}"
+            )
+            imwrite_kwds = self.imwrite_kwds or {}
+            iio.imwrite(
+                intermediate_path,
+                images,
+                extension=self._output_extension,
+                **imwrite_kwds,
+            )
+        except (TypeError, FileNotFoundError) as exc:
+            raise RuntimeError(
+                "Use the built-in `compute` method instead; the `plan` method "
+                "does not have the temporary directory set internally yet"
+            ) from exc
         return intermediate_path
 
     def _concat_animations(self, partitioned_animations) -> Path:
+        """
+        Concatenates the incomplete animations to create a more complete animation.
+        """
         intermediate_path = (
-            self._temporary_directory / f"{uuid.uuid1()}{self.output_extension}"
+            self._temporary_directory / f"{uuid.uuid1()}{self._output_extension}"
         )
         return intermediate_path
 
     @dask.delayed
-    def _transfer_output(self, intermediate_path: Path):
+    def _transfer_output(self, intermediate_path: Path) -> Path:
+        """
+        Transfers the final animation from a temporary
+        directory to the desired output path.
+        """
         output_path = Path(self.output_path).absolute()
         intermediate_path.rename(output_path)
         return output_path
@@ -129,9 +198,23 @@ class BaseAnimator(BaseModel, ABC):
         self,
         partition_size: Optional[int] = None,
         split_every: int = None,
-        display: bool = True,
-        **compute_kwargs
-    ) -> Path:
+        visualize: bool = True,
+        **compute_kwds: Dict[str, Any],  # noqa
+    ) -> dask.delayed:
+        """
+        TODO:
+
+        Args:
+            partition_size: The number of items per partition to pass to workers.
+            split_every: The number of partitions per group while reducing.
+            visualize: Returns a visual of how the items are delegated if True;
+                otherwise returns a Delayed object.
+            **compute_kwds: Not used for anything in `plan`; exists so it's
+                straightforward to swap `plan` out for `compute` when ready.
+
+        Returns:
+            A visualization if `visualize=True`, otherwise dask.delayed object.
+        """
         input_bag = dask.bag.from_sequence(self.items, partition_size=partition_size)
         intermediate_path = input_bag.reduction(
             self._animate_images,
@@ -139,7 +222,8 @@ class BaseAnimator(BaseModel, ABC):
             split_every=split_every,
         )
         output_path = self._transfer_output(intermediate_path)
-        if display:
+
+        if visualize:
             return output_path.visualize()
         else:
             return output_path
@@ -149,32 +233,65 @@ class BaseAnimator(BaseModel, ABC):
         partition_size: Optional[int] = None,
         split_every: int = None,
         client: Optional["Client"] = None,
-        scheduler: str = "threads",
-        **compute_kwds
+        scheduler: Optional[str] = None,
+        **compute_kwds: Dict[str, Any],
     ) -> Path:
+        """
+        TODO:
+
+        Args:
+            partition_size: The number of items per partition to pass to workers.
+            split_every: The number of partitions per group while reducing.
+            visualize: Returns a visual of how the items are delegated if True;
+                otherwise returns a Delayed object.
+            **compute_kwds: Not used for anything in `plan`; exists so it's
+                straightforward to swap `plan` out for `compute` when ready.
+
+        Returns:
+            The path to the output animation.
+        """
         with TemporaryDirectory(
             prefix="enjoyn_", dir=self.scratch_directory
         ) as temporary_directory:
             if self._debug:
-                temporary_directory = "."
+                temporary_directory = "enjoyn_debug_workspace"
             self._temporary_directory = Path(temporary_directory)
+            self._temporary_directory.mkdir(exist_ok=True)
+
             plan = self.plan(
-                partition_size=partition_size, split_every=split_every
+                partition_size=partition_size, split_every=split_every, visualize=False
             )
+
+            if scheduler is None:
+                scheduler = "processes" if self.preprocessor else "threads"
             compute_kwds["scheduler"] = scheduler
+
             if client is not None:
                 output_path = client.compute(plan, **compute_kwds).result()
             else:
-                output_path = dask.compute(plan, **compute_kwds)[0]
+                with dask.diagnostics.ProgressBar():
+                    output_path = dask.compute(plan, **compute_kwds)[0]
+
         return output_path
 
 
 class GifAnimator(BaseAnimator):
+    """
+    TODO:
+    """
 
-    gifsicle_options: Tuple[str] = ("--optimize=2", "--no-conserve-memory")
-    output_extension: str = ".gif"
+    gifsicle_options: Tuple[str] = (
+        "--optimize=2",
+        "--no-conserve-memory",
+        "--no-warnings",
+    )
+
+    _output_extension: str = ".gif"
 
     def _concat_animations(self, partitioned_animations) -> Path:
+        """
+        Concatenates the incomplete animations to create a more complete animation.
+        """
         intermediate_path = super()._concat_animations(partitioned_animations)
         pygifsicle.gifsicle(
             sources=list(partitioned_animations),
@@ -185,15 +302,26 @@ class GifAnimator(BaseAnimator):
 
 
 class Mp4Animator(BaseAnimator):
+    """
+    TODO:
+    """
 
-    output_extension: str = ".mp4"
+    _output_extension: str = ".mp4"
 
     def _concat_animations(self, partitioned_animations) -> Path:
+        """
+        Concatenates the incomplete animations to create a more complete animation.
+        """
         intermediate_path = super()._concat_animations(partitioned_animations)
         input_path = self._temporary_directory / f"{uuid.uuid1()}.txt"
-        input_text = "\n".join(f"file '{animation}'" for animation in partitioned_animations)
+        input_text = "\n".join(
+            f"file '{animation}'" for animation in partitioned_animations
+        )
         with open(input_path, "w") as f:
             f.write(input_text)
-        cmd = shlex.split(f"ffmpeg -f concat -loglevel quiet -safe 0 -i '{input_path}' -c copy '{intermediate_path}'")
+        cmd = shlex.split(
+            f"ffmpeg -f concat -loglevel quiet -safe 0 "
+            f"-i '{input_path}' -c copy '{intermediate_path}'"
+        )
         subprocess.run(cmd)
         return intermediate_path
