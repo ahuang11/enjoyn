@@ -6,10 +6,11 @@ import inspect
 import shlex
 import subprocess
 import uuid
+from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import GeneratorType
-from typing import TYPE_CHECKING, Any, Dict, Iterable, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, Optional, Tuple, Union
 
 import dask.bag
 import dask.delayed
@@ -31,21 +32,21 @@ class BaseAnimator(BaseModel, extra=Extra.allow):
     The base animator containing most of the common inputs and methods used in
     other animators inheriting from this. Note, this should not to be used directly.
 
-    Attributes:
+    Args:
         items: The items to animate; can be file names, bytes, numpy arrays, or
             anything that can be read with `imageio.imread`. If the `preprocessor` is
             provided, then the items can be anything the preprocessor function accepts.
         output_path: The path to save the output animation to.
         preprocessor: The preprocessor to apply to each item. More info can be
-            found within the `preprocessor` model's docstring.
-        imwrite_kwds: The `imageio.imwrite` keywords to use.
+            found within the :meth:`enjoyn.Preprocessor` model's docstring.
+        imwrite_kwds: Additional keywords to pass to `imageio.imwrite`.
         scratch_directory: The base directory to create the temporary directory
             for intermediary files.
     """
 
     items: Iterable[Any]
     output_path: Union[Path, str]
-    preprocessor: Optional[Preprocessor] = None
+    preprocessor: Optional[Union[Callable, Preprocessor]] = None
 
     imwrite_kwds: Optional[Dict[str, Any]] = None
     scratch_directory: Optional[Union[Path, str]] = None
@@ -85,6 +86,15 @@ class BaseAnimator(BaseModel, extra=Extra.allow):
             )
         return value
 
+    @validator("preprocessor", pre=True)
+    def _serialize_callable(cls, value):
+        """
+        Serialize callable into `Preprocessor`.
+        """
+        if callable(value):
+            value = Preprocessor(func=value)
+        return value
+
     @classmethod
     def from_directory(
         cls,
@@ -101,20 +111,10 @@ class BaseAnimator(BaseModel, extra=Extra.allow):
             directory: The directory to retrieve the file names.
             pattern: The pattern to subset the file names within the directory.
             limit: The maximum number of file names to use.
-            **source_kwds: Additional keywords to pass to use for the animator.
+            **animator_kwds: Additional keywords to pass to the animator.
 
         Returns:
             An instantiated animator class.
-
-        Examples:
-            Instantiate `GifAnimator` using PNG files from the`imgs/`:
-            ```python
-            gif_animator = GifAnimator.from_directory(
-                directory="imgs/",
-                pattern="*.png",
-                output_path="animation.gif"
-            )
-            ```
         """
         directory = Path(directory)
 
@@ -136,7 +136,7 @@ class BaseAnimator(BaseModel, extra=Extra.allow):
             args = self.preprocessor.args
             kwds = self.preprocessor.kwds or {}
             item = self.preprocessor.func(item, *args, **kwds)
-            valid_types = (Path, str, bytes, np.ndarray)
+            valid_types = (Path, str, BytesIO, bytes, np.ndarray)
             if not isinstance(item, valid_types):
                 callable_name = self.preprocessor.func.__name__
                 return_type = type(item).__name__
@@ -162,6 +162,8 @@ class BaseAnimator(BaseModel, extra=Extra.allow):
                 self._temporary_directory / f"{uuid.uuid1()}{self._output_extension}"
             )
             imwrite_kwds = self.imwrite_kwds or {}
+            if "loop" not in imwrite_kwds:
+                imwrite_kwds["loop"] = 0
             iio.imwrite(
                 intermediate_path,
                 images,
@@ -202,7 +204,9 @@ class BaseAnimator(BaseModel, extra=Extra.allow):
         **compute_kwds: Dict[str, Any],  # noqa
     ) -> dask.delayed:
         """
-        TODO:
+        Assemble the plan to create the animation, partitioning items across workers,
+        applying the preprocessor, if any, serializing the items into an incomplete
+        animation, and progressively joining those animations into the final animation.
 
         Args:
             partition_size: The number of items per partition to pass to workers.
@@ -237,15 +241,18 @@ class BaseAnimator(BaseModel, extra=Extra.allow):
         **compute_kwds: Dict[str, Any],
     ) -> Path:
         """
-        TODO:
+        Execute the plan to create the animation, partitioning items across workers,
+        applying the preprocessor, if any, serializing the items into an incomplete
+        animation, and progressively joining those animations into the final animation.
 
         Args:
             partition_size: The number of items per partition to pass to workers.
             split_every: The number of partitions per group while reducing.
-            visualize: Returns a visual of how the items are delegated if True;
-                otherwise returns a Delayed object.
-            **compute_kwds: Not used for anything in `plan`; exists so it's
-                straightforward to swap `plan` out for `compute` when ready.
+            client: If a distributed client is not provided, will use the local
+                client, which has limited options.
+            scheduler: Whether to use `threads` or `processes` workers.
+            **compute_kwds: Additional keywords to pass to `dask.compute`,
+                or if `client` is provided, `client.compute`.
 
         Returns:
             The path to the output animation.
@@ -277,7 +284,12 @@ class BaseAnimator(BaseModel, extra=Extra.allow):
 
 class GifAnimator(BaseAnimator):
     """
-    TODO:
+    Used for animating images into a GIF animation.
+
+    Args:
+        gifsicle_options: A tuple of options to pass to `gifsicle`; see
+            the [`gifsicle` manual](https://www.lcdf.org/gifsicle/man.html)
+            for a full list of available options.
     """
 
     gifsicle_options: Tuple[str] = (
@@ -303,8 +315,15 @@ class GifAnimator(BaseAnimator):
 
 class Mp4Animator(BaseAnimator):
     """
-    TODO:
+    Used for animating images into a GIF animation.
+
+    Args:
+        ffmpeg_options: A tuple of options to pass to `ffmpeg`; see
+            the [`ffmpeg` manual](https://ffmpeg.org/ffmpeg.html#Options)
+            for a full list of available options.
     """
+
+    ffmpeg_options: Tuple[str] = "-loglevel quiet"
 
     _output_extension: str = ".mp4"
 
@@ -319,8 +338,10 @@ class Mp4Animator(BaseAnimator):
         )
         with open(input_path, "w") as f:
             f.write(input_text)
+
+        ffmpeg_options = " ".join(self.ffmpeg_options)
         cmd = shlex.split(
-            f"ffmpeg -f concat -loglevel quiet -safe 0 "
+            f"ffmpeg -f concat {ffmpeg_options} "
             f"-i '{input_path}' -c copy '{intermediate_path}'"
         )
         subprocess.run(cmd)

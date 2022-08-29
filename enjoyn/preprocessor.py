@@ -12,7 +12,7 @@ class Preprocessor(BaseModel):
     """
     Used to store a function and its inputs.
 
-    Attributes:
+    Args:
         func: The function to apply to each item of the animator; the function
             must accept the item to process as the first positional arg and
             must return either a `Path`, `str`, `bytes`, or `np.ndarray` type.
