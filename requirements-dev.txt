@@ -12,3 +12,5 @@ sphinx-book-theme
 ipykernel
 jupyter
 ipywidgets
+pooch
+xarray

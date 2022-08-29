@@ -23,6 +23,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.coverage",
     "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
 ]
 
 templates_path = ["_templates"]
@@ -46,3 +47,4 @@ html_theme_options = {
 
 nbsphinx_allow_errors = False
 nbsphinx_kernel_name = "python3"
+nbsphinx_prompt_width = "0"
