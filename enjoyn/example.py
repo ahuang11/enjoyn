@@ -13,6 +13,7 @@ from uuid import uuid1
 
 import matplotlib.pyplot as plt
 import numpy as np
+import xarray as xr
 from pydantic import BaseModel, Extra
 
 np.random.seed(20280808)
@@ -56,8 +57,25 @@ class Example(BaseModel, extra=Extra.allow):
         """
         rmtree(self._temporary_directory)
 
+    def size_of(self, file: Union[Path, str]):
+        """
+        Gets the size of a file in MBs.
+        """
+        path = Path(file)
+        file_size = path.stat().st_size / 1024 / 1024
+        print(f"File size of {path.name}: {file_size:.2f} MBs")
+
 
 class RandomWalkExample(Example):
+    """
+    An example related to a numpy array of random coordinates.
+
+    Args:
+        length: The number of items in the data.
+        scratch_directory: The base directory to create the temporary directory
+            for intermediary files.
+    """
+
     def load_data(self) -> np.ndarray:
         """
         Loads a `(self.length, 2)` shaped array.
@@ -80,10 +98,14 @@ class RandomWalkExample(Example):
         Returns:
             The output image as `BytesIO` or `Path`.
         """
-        x, y = zip(*data_subset)
         fig = plt.figure(figsize=(8, 8))
         ax = plt.axes()
+
+        x, y = zip(*data_subset)
         ax.plot(x, y)
+
+        title = f"{len(data_subset):04d}"
+        ax.set_title(title)
 
         if in_memory:
             output = BytesIO()
@@ -100,4 +122,73 @@ class RandomWalkExample(Example):
         """
         data = self.load_data()
         outputs = [self.plot_image(data[:i]) for i in np.arange(1, len(data) + 1)]
+        return outputs
+
+
+class AirTemperatureExample(Example):
+    """
+    An example related to an xarray Dataset of air temperatures.
+
+    Args:
+        length: The number of items in the data.
+        scratch_directory: The base directory to create the temporary directory
+            for intermediary files.
+    """
+
+    length: int = 2920
+
+    def load_data(self) -> xr.Dataset:
+        """
+        Loads an xarray Dataset.
+        """
+        ds = xr.tutorial.open_dataset("air_temperature").chunk({"time": 10})
+        return ds
+
+    def plot_image(
+        self, ds_sel: xr.Dataset, in_memory: bool = False
+    ) -> Union[BytesIO, Path]:
+        """
+        Plots an image from the data subset.
+
+        Args:
+            data_subset: The subset dataset; should be shaped (x, y).
+            in_memory: If True, save output to `BytesIO`; if False, save to disk.
+
+        Returns:
+            The output image as `BytesIO` or `Path`.
+        """
+        fig = plt.figure(figsize=(12, 8))
+        ax = plt.axes()
+
+        img = ax.contourf(
+            ds_sel["lon"],
+            ds_sel["lat"],
+            ds_sel["air"],
+            cmap="RdBu_r",
+            levels=range(220, 320, 10),
+        )
+        plt.colorbar(img)
+
+        title = ds_sel["time"].dt.strftime("%H:%MZ %Y-%m-%d").item()
+        ax.set_title(title)
+
+        if in_memory:
+            output = BytesIO()
+        else:
+            output = self._temporary_directory / f"{uuid1()}.png"
+
+        fig.savefig(output, transparent=False, facecolor="white")
+
+        plt.close()
+        return output
+
+    def output_images(self) -> List[Union[BytesIO, Path]]:
+        """
+        Outputs a list of images as `BytesIO` or `Path`.
+        """
+        ds = self.load_data()
+        outputs = [
+            self.plot_image(ds.sel(time=time))
+            for time in ds["time"].values[: self.length]
+        ]
         return outputs

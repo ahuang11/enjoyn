@@ -3,8 +3,11 @@ This module contains preprocessors that store functions to
 apply to each item of the animator.
 """
 
-from typing import Any, Callable, Dict, Optional, Tuple
+from io import BytesIO
+from pathlib import Path
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
+import numpy as np
 from pydantic import BaseModel
 
 
@@ -21,5 +24,24 @@ class Preprocessor(BaseModel):
     """
 
     func: Callable
-    args: Tuple[Any] = ()
+    args: List[Any] = None
     kwds: Optional[Dict[str, Any]] = None
+
+    _valid_return_types: Tuple[Type] = (Path, str, BytesIO, bytes, np.ndarray)
+
+    def apply_on(self, item):
+        args = self.args or ()
+        kwds = self.kwds or {}
+        item = self.func(item, *args, **kwds)
+        if not isinstance(item, self._valid_return_types):
+            callable_name = self.func.__name__
+            return_type = type(item).__name__
+            valid_return_types_names = ", ".join(
+                f"`{type_.__name__}`" for type_ in self._valid_return_types
+            )
+            raise TypeError(
+                f"The '{callable_name}' callable returned an object with "
+                f"`{return_type}` type; update '{callable_name}' so the "
+                f"returned object is either {valid_return_types_names} type"
+            )
+        return item
