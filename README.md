@@ -25,7 +25,7 @@ Install `enjoyn` with `pip`:
 pip install enjoyn
 ```
 
-Requires an installation of Python 3.6+.
+Requires an installation of Python 3.7+.
 
 ## Resources
 

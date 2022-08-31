@@ -16,3 +16,4 @@ pooch
 xarray
 imageio-ffmpeg
 graphviz
+pygifsicle

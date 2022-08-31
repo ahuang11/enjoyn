@@ -21,6 +21,6 @@ Join images to form animations, with enjoyability and scalability in mind.
    :maxdepth: 2
    :caption: Reference
 
-   reference/benchmarks
+   reference/library_comparisons
    reference/design_notes
    reference/modules
