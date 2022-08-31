@@ -2,7 +2,9 @@ from pathlib import Path
 
 import imageio.v3 as iio
 import numpy as np
+import pandas as pd
 import pytest
+import xarray as xr
 from dask import is_dask_collection
 from dask.distributed import Client
 from IPython.core.display import Image
@@ -23,20 +25,6 @@ class StandardAnimatorSuite:
     @pytest.fixture
     def animator(self, animator_class, items, output_path):
         return animator_class(items=items, output_path=output_path)
-
-
-class ComputableAnimatorSuite(StandardAnimatorSuite):
-    @pytest.mark.parametrize("scheduler", [None, "threads", "processes"])
-    @pytest.mark.parametrize("client", [None, Client()])
-    def test_compute(self, animator, client, scheduler):
-        assert (
-            animator.compute(client=client, scheduler=scheduler) == animator.output_path
-        )
-
-    def test_compute_debug(self, animator):
-        animator._debug = True
-        animator.compute()
-        animator._temporary_directory.name == "enjoyn_debug_workspace"
 
 
 class TestBaseAnimator(StandardAnimatorSuite):
@@ -60,6 +48,18 @@ class TestBaseAnimator(StandardAnimatorSuite):
                 items=items,
                 output_path=output_path,
             )
+
+    @pytest.mark.parametrize(
+        "array",
+        [np.array([0, 1, 2]), pd.Series([0, 1, 2]), xr.DataArray(data=[0, 1, 2])],
+    )
+    def test_instantiation_serialize_array(self, array, output_path):
+        base_animator = BaseAnimator(
+            items=array,
+            output_path=output_path,
+        )
+        print(type(base_animator.items))
+        assert base_animator.items == list(array)
 
     @pytest.mark.parametrize(
         "preprocessor", [lambda item: item, Preprocessor(func=lambda item: item)]
@@ -168,7 +168,21 @@ class TestBaseAnimator(StandardAnimatorSuite):
             animator.plan()
 
 
-class TestGifAnimator(ComputableAnimatorSuite):
+class RunnableAnimatorSuite(StandardAnimatorSuite):
+    @pytest.mark.parametrize("scheduler", [None, "threads", "processes"])
+    @pytest.mark.parametrize("client", [None, Client()])
+    def test_compute(self, animator, client, scheduler):
+        assert (
+            animator.compute(client=client, scheduler=scheduler) == animator.output_path
+        )
+
+    def test_compute_debug(self, animator):
+        animator._debug = True
+        animator.compute()
+        animator._temporary_directory.name == "enjoyn_debug_workspace"
+
+
+class TestGifAnimator(RunnableAnimatorSuite):
     @pytest.fixture
     def output_extension(self):
         return ".gif"
@@ -183,7 +197,7 @@ class TestGifAnimator(ComputableAnimatorSuite):
             animator.compute()
 
 
-class TestMp4Animator(ComputableAnimatorSuite):
+class TestMp4Animator(RunnableAnimatorSuite):
     @pytest.fixture
     def output_extension(self):
         return ".mp4"
