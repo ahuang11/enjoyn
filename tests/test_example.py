@@ -39,7 +39,7 @@ class TestExample(StandardExampleSuite):
         assert not example._temporary_directory.exists()
 
     def test_size_of(self, example, capsys):
-        assert example.size_of("test_example.py") is None
+        assert example.size_of(__file__) is None
         captured = capsys.readouterr()
         assert "File size of " in captured.out
 
