@@ -18,3 +18,4 @@ imageio-ffmpeg
 graphviz
 pygifsicle
 matplotlib
+netcdf4
