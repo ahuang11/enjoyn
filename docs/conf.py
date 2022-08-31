@@ -48,3 +48,4 @@ html_theme_options = {
 nbsphinx_allow_errors = False
 nbsphinx_kernel_name = "python3"
 nbsphinx_prompt_width = "0"
+nbsphinx_execute = "never"
