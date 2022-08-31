@@ -23,4 +23,4 @@ Join images to form animations, with enjoyability and scalability in mind.
 
    reference/library_comparisons
    reference/design_notes
-   reference/modules
+   reference/package_modules

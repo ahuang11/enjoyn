@@ -1,5 +1,5 @@
-modules
-=======
+package modules
+===============
 
 animator.py
 -----------
