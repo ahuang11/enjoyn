@@ -28,10 +28,12 @@ class Example(BaseModel, extra=Extra.allow):
         length: The number of items in the data.
         scratch_directory: The base directory to create the temporary directory
             for intermediary files.
+        to_bytes_io: If True, save output to `BytesIO`; if False, save to disk.
     """
 
     length: int = 1000
-    scratch_directory: Optional[Union[Path, str]] = None
+    scratch_directory: Optional[Path] = None
+    to_bytes_io: bool = False
 
     _temporary_directory: Path = None
 
@@ -55,7 +57,8 @@ class Example(BaseModel, extra=Extra.allow):
         """
         Deletes the temporary directory.
         """
-        rmtree(self._temporary_directory)
+        if self._temporary_directory.exists():
+            rmtree(self._temporary_directory)
 
     def size_of(self, file: Union[Path, str]):
         """
@@ -85,15 +88,12 @@ class RandomWalkExample(Example):
         data = start + np.cumsum(steps, axis=0)
         return data
 
-    def plot_image(
-        self, data_subset: np.ndarray, in_memory: bool = False
-    ) -> Union[BytesIO, Path]:
+    def plot_image(self, data_subset: np.ndarray) -> Union[BytesIO, Path]:
         """
         Plots an image from the data subset.
 
         Args:
             data_subset: The subset data array; should be shaped (n, 2).
-            in_memory: If True, save output to `BytesIO`; if False, save to disk.
 
         Returns:
             The output image as `BytesIO` or `Path`.
@@ -104,10 +104,7 @@ class RandomWalkExample(Example):
         x, y = zip(*data_subset)
         ax.plot(x, y)
 
-        title = f"{len(data_subset):04d}"
-        ax.set_title(title)
-
-        if in_memory:
+        if self.to_bytes_io:
             output = BytesIO()
         else:
             output = self._temporary_directory / f"{uuid1()}.png"
@@ -142,17 +139,15 @@ class AirTemperatureExample(Example):
         Loads an xarray Dataset.
         """
         ds = xr.tutorial.open_dataset("air_temperature").chunk({"time": 10})
+        ds = ds.isel(time=slice(None, self.length))
         return ds
 
-    def plot_image(
-        self, ds_sel: xr.Dataset, in_memory: bool = False
-    ) -> Union[BytesIO, Path]:
+    def plot_image(self, ds_sel: xr.Dataset) -> Union[BytesIO, Path]:
         """
         Plots an image from the data subset.
 
         Args:
             data_subset: The subset dataset; should be shaped (x, y).
-            in_memory: If True, save output to `BytesIO`; if False, save to disk.
 
         Returns:
             The output image as `BytesIO` or `Path`.
@@ -172,7 +167,7 @@ class AirTemperatureExample(Example):
         title = ds_sel["time"].dt.strftime("%H:%MZ %Y-%m-%d").item()
         ax.set_title(title)
 
-        if in_memory:
+        if self.to_bytes_io:
             output = BytesIO()
         else:
             output = self._temporary_directory / f"{uuid1()}.png"
@@ -187,8 +182,5 @@ class AirTemperatureExample(Example):
         Outputs a list of images as `BytesIO` or `Path`.
         """
         ds = self.load_data()
-        outputs = [
-            self.plot_image(ds.sel(time=time))
-            for time in ds["time"].values[: self.length]
-        ]
+        outputs = [self.plot_image(ds.sel(time=time)) for time in ds["time"].values]
         return outputs

@@ -24,7 +24,7 @@ class Preprocessor(BaseModel):
     """
 
     func: Callable
-    args: List[Any] = None
+    args: Optional[List[Any]] = None
     kwds: Optional[Dict[str, Any]] = None
 
     _valid_return_types: Tuple[Type] = (Path, str, BytesIO, bytes, np.ndarray)

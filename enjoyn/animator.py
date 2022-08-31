@@ -3,19 +3,29 @@ This module contains animators that join images into the desired animation forma
 """
 
 import shlex
+import shutil
 import subprocess
 import uuid
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import TYPE_CHECKING, Any, Callable, Dict, Iterable, List, Optional, Union
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 import dask.bag
 import dask.delayed
 import dask.diagnostics
 import imageio.v3 as iio
 import numpy as np
-import pygifsicle
-from pydantic import BaseModel, Field, PrivateAttr, validator
+
+try:
+    import pygifsicle
+except ImportError:
+    pygifsicle = None
+try:
+    import imageio_ffmpeg
+except ImportError:
+    imageio_ffmpeg = None
+
+from pydantic import BaseModel, Field, PrivateAttr, root_validator, validator
 
 if TYPE_CHECKING:  # pragma: no cover
     from dask.distributed import Client
@@ -41,7 +51,7 @@ class BaseAnimator(BaseModel):
             for intermediary files.
     """
 
-    items: List[Any] = Field(..., min_items=2)
+    items: List[Any] = Field(min_items=2)
     output_path: Path
     preprocessor: Optional[Union[Preprocessor, Callable]] = None
 
@@ -51,6 +61,13 @@ class BaseAnimator(BaseModel):
     _output_extension: Optional[str] = PrivateAttr(None)
     _temporary_directory: Optional[Path] = PrivateAttr(None)
     _debug: bool = PrivateAttr(False)
+
+    @validator("items", pre=True)
+    def _serialize_array(cls, value) -> List:
+        """
+        Serialize anything like `np.array` into a `list`.
+        """
+        return list(value)
 
     @validator("preprocessor", pre=True)
     def _serialize_callable(cls, value) -> Preprocessor:
@@ -103,7 +120,7 @@ class BaseAnimator(BaseModel):
         image = iio.imread(item) if not isinstance(item, np.ndarray) else item
         return image
 
-    def _animate_images(self, partitioned_items: Iterable[Any]) -> Path:
+    def _animate_images(self, partitioned_items: List[Any]) -> Path:
         """
         Serializes items in the partition and creates an incomplete animation.
         """
@@ -169,7 +186,7 @@ class BaseAnimator(BaseModel):
         Returns:
             A visualization if `visualize=True`, otherwise dask.delayed object.
         """
-        extension = self.output_path.suffix
+        extension = self.output_path.suffix.lower()
         if extension != self._output_extension:
             raise ValueError(
                 f"The output path must end in '{self._output_extension}' "
@@ -249,13 +266,30 @@ class GifAnimator(BaseAnimator):
             for a full list of available options.
     """
 
-    gifsicle_options: Iterable[str] = (
+    gifsicle_options: List[str] = (
         "--optimize=2",
         "--no-conserve-memory",
         "--no-warnings",
     )
 
     _output_extension: str = PrivateAttr(".gif")
+
+    @root_validator(pre=True)
+    def _plugin_installed(cls, values):  # pragma: no cover
+        """
+        Check whether required libraries are installed.
+        """
+        if pygifsicle is None:
+            raise ImportError(
+                "Ensure pygifsicle is installed with " "`pip install -U pygifsicle`"
+            )
+        if not shutil.which("gifsicle"):
+            raise ImportError(
+                "Ensure gifsicle is installed with the equivalent of "
+                "`conda install -c conda-forge gifsicle`; "
+                "visit the docs for other installation methods"
+            )
+        return values
 
     def _concat_animations(self, partitioned_animations) -> Path:
         """
@@ -285,9 +319,27 @@ class Mp4Animator(BaseAnimator):
             for a full list of available options.
     """
 
-    ffmpeg_options: Iterable[str] = ("-loglevel warning",)
+    ffmpeg_options: List[str] = ("-loglevel warning",)
 
     _output_extension: str = PrivateAttr(".mp4")
+
+    @root_validator(pre=True)
+    def _plugin_installed(cls, values):  # pragma: no cover
+        """
+        Check whether required libraries are installed.
+        """
+        if imageio_ffmpeg is None:
+            raise ImportError(
+                "Ensure imageio_ffmpeg is installed with "
+                "`pip install -U imageio_ffmpeg`"
+            )
+        if not shutil.which("ffmpeg"):
+            raise ImportError(
+                "Ensure ffmpeg is installed with the equivalent of "
+                "`conda install -c conda-forge ffmpeg`; "
+                "visit the docs for other installation methods"
+            )
+        return values
 
     def _concat_animations(self, partitioned_animations) -> Path:
         """
