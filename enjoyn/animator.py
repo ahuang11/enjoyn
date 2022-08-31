@@ -159,7 +159,7 @@ class BaseAnimator(BaseModel):
         directory to the desired output path.
         """
         output_path = self.output_path.absolute()
-        intermediate_path.rename(output_path)
+        shutil.move(intermediate_path, output_path)
         return output_path
 
     def plan(
