@@ -13,7 +13,7 @@
 
 ## Welcome!
 
-Join images to form animations, with enjoyability and scalability in mind.
+Generate and animate images in parallel, enjoyably.
 
 ## Getting Started
 

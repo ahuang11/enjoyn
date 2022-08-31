@@ -1,6 +1,6 @@
 Home
 ====
-Join images to form animations, with enjoyability and scalability in mind.
+Generate and animate images in parallel, enjoyably.
 
 .. toctree::
    :maxdepth: 2
