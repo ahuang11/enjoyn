@@ -17,3 +17,4 @@ xarray
 imageio-ffmpeg
 graphviz
 pygifsicle
+matplotlib
