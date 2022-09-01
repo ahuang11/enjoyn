@@ -21,6 +21,6 @@ Generate and animate images in parallel, enjoyably.
    :maxdepth: 2
    :caption: Reference
 
-   reference/library_comparisons
+   reference/library_benchmarks
    reference/design_notes
    reference/package_modules
