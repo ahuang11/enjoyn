@@ -1,4 +1,6 @@
 # enjoyn
+<a href="https://github.com/ahuang11/enjoyn" alt="Enjoyn Logo">
+    <img src="https://raw.githubusercontent.com/ahuang11/enjoyn/main/docs/enjoyn.svg" /></a>
 
 <a href="https://pypi.python.org/pypi/enjoyn/" alt="PyPI Version">
     <img src="https://badge.fury.io/py/enjoyn.svg" /></a>
@@ -10,6 +12,8 @@
     <img src="https://img.shields.io/github/commit-activity/m/ahuang11/enjoyn" /></a>
 <a href="https://github.com/ahuang11/enjoyn/graphs/contributors" alt="Contributors">
     <img src="https://img.shields.io/github/contributors/ahuang11/enjoyn" /></a>
+<a href="https://github.com/ahuang11/enjoyn/tree/main/tests" alt="Coverage">
+    <img src="https://raw.githubusercontent.com/ahuang11/enjoyn/fix_docs/docs/coverage.svg" /></a>
 
 ## Welcome!
 
