@@ -6,7 +6,7 @@ Generate and animate images in parallel, enjoyably.
    :maxdepth: 2
    :caption: Get Started
 
-   get_started/outline
+   get_started/overview
    get_started/installation
    get_started/cheat_sheet
    get_started/best_practices
