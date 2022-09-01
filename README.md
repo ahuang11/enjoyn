@@ -1,5 +1,5 @@
 ​<p align="center">
-   <a href="https://github.com/ahuang11/enjoyn" alt="Enjoyn Logo">
+   <a href="https://github.com/ahuang11/enjoyn_white" alt="Enjoyn Logo">
        <img src="https://raw.githubusercontent.com/ahuang11/enjoyn/main/docs/enjoyn.svg" /></a>
     <a href="https://pypi.python.org/pypi/enjoyn/" alt="PyPI version">
         <img alt="PyPI" src="https://img.shields.io/pypi/v/enjoyn?color=CA2A7A&labelColor=090422"></a>
