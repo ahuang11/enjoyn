@@ -8,7 +8,7 @@
         <rect width="99" height="20" rx="3" fill="#fff"/>
     </mask>
     <g mask="url(#a)">
-        <path fill="#555" d="M0 0h63v20H0z"/>
+        <path fill="#090422" d="M0 0h63v20H0z"/>
         <path fill="#CA2A7A" d="M63 0h36v20H63z"/>
         <path fill="url(#b)" d="M0 0h99v20H0z"/>
     </g>
