@@ -1,4 +1,4 @@
-​<p align="center">
+<p align="center">
    <a href="https://github.com/ahuang11/enjoyn" alt="Enjoyn Logo">
     <img src="https://raw.githubusercontent.com/ahuang11/enjoyn/main/docs/enjoyn_white.svg" /></a>
    <br>
@@ -34,23 +34,10 @@ Requires an installation of Python 3.7+.
 
 ## Resources
 
-If you encounter any bugs while using `enjoyn`, feel free to open an issue in the [enjoyn](https://github.com/ahuang11/enjoyn) repository.
+The full documentation can be found [here](https://enjoyn.readthedocs.io/en/latest/index.html).
 
-If you have any questions or issues while using `enjoyn`, ask away on the [discussions](https://github.com/ahuang11/enjoyn/discussions/) page!
+If you encounter any bugs while using `enjoyn`, feel free to [open an issue](https://github.com/ahuang11/enjoyn/issues).
+
+If you have any questions or issues while using `enjoyn`, ask away in [discussions](https://github.com/ahuang11/enjoyn/discussions/)!
 
 Don't forget to star the project if you like the project!
-
-## Development
-
-If you'd like to install a version of `enjoyn` for development, clone the repository and perform an editable install with `pip`:
-
-```bash
-git clone https://github.com/ahuang11/enjoyn.git
-
-cd enjoyn/
-
-pip install -e ".[dev]"
-
-# Install linting pre-commit hooks
-pre-commit install
-```
