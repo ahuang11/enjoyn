@@ -13,7 +13,7 @@
 
 ## Welcome!
 
-Join images to form animations, with enjoyability and scalability in mind.
+Generate and animate images in parallel, enjoyably.
 
 ## Getting Started
 
@@ -25,7 +25,7 @@ Install `enjoyn` with `pip`:
 pip install enjoyn
 ```
 
-Requires an installation of Python 3.6+.
+Requires an installation of Python 3.7+.
 
 ## Resources
 

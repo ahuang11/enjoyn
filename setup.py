@@ -13,7 +13,7 @@ with open("README.md") as readme_file:
 
 setup(
     name="enjoyn",
-    description="Join images to form animations, with enjoyability and scalability in mind.",
+    description="Generate and animate images in parallel, enjoyably.",
     license="Apache License 2.0",
     author="Andrew Huang",
     keywords=["enjoy", "join", "scale", "animation"],

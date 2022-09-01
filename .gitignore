@@ -1,3 +1,13 @@
+# Dask worker space
+dask-worker-space
+
+# Accidental output
+*.gif
+*.mp4
+*.png
+*.jpg
+enjoyn_debug_workspace
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

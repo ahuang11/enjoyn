@@ -1,10 +1,8 @@
 pytest
 black
 flake8
-mypy
 isort
 pre-commit
-pytest-asyncio
 mock; python_version < '3.8'
 interrogate
 coverage
@@ -14,3 +12,10 @@ sphinx-book-theme
 ipykernel
 jupyter
 ipywidgets
+pooch
+xarray
+imageio-ffmpeg
+graphviz
+pygifsicle
+matplotlib
+netcdf4

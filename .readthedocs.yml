@@ -1,0 +1,15 @@
+version: 2
+formats: all
+
+build:
+  apt_packages:
+    - gifsicle
+    - ffmpeg
+python:
+  version: 3
+  install:
+    - requirements: requirements.txt
+    - requirements: requirements-dev.txt
+    - method: pip
+      path: .
+  system_packages: true
