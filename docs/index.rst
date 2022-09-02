@@ -2,6 +2,12 @@ Home
 ====
 Generate and animate images in parallel, enjoyably.
 
+If you encounter any bugs while using `enjoyn`, feel free to `open an issue <https://github.com/ahuang11/enjoyn/issues>`_.
+
+If you have any questions or issues while using `enjoyn`, `ask away in discussions <https://github.com/ahuang11/enjoyn/discussions>`_!
+
+Don't forget to star the project if you like the project!
+
 .. toctree::
    :maxdepth: 2
    :caption: Get Started
