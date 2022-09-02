@@ -18,11 +18,11 @@ import numpy as np
 
 try:
     import pygifsicle
-except ImportError:
+except ImportError:  # pragma: no cover
     pygifsicle = None
 try:
     import imageio_ffmpeg
-except ImportError:
+except ImportError:  # pragma: no cover
     imageio_ffmpeg = None
 
 from pydantic import BaseModel, Field, PrivateAttr, root_validator, validator
@@ -127,7 +127,8 @@ class BaseAnimator(BaseModel):
         images = [self._serialize_item(item) for item in partitioned_items]
         try:
             intermediate_path = (
-                self._temporary_directory / f"{uuid.uuid1()}{self._output_extension}"
+                self._temporary_directory
+                / f"{uuid.uuid4().hex}{self._output_extension}"
             )
             imwrite_kwds = self.imwrite_kwds or {}
             iio.imwrite(
@@ -148,7 +149,7 @@ class BaseAnimator(BaseModel):
         Concatenates the incomplete animations to create a more complete animation.
         """
         intermediate_path = (
-            self._temporary_directory / f"{uuid.uuid1()}{self._output_extension}"
+            self._temporary_directory / f"{uuid.uuid4().hex}{self._output_extension}"
         ).absolute()
         return intermediate_path
 
@@ -224,7 +225,8 @@ class BaseAnimator(BaseModel):
             split_every: The number of partitions per group while reducing.
             client: If a distributed client is not provided, will use the local
                 client, which has limited options.
-            scheduler: Whether to use `threads` or `processes` workers.
+            scheduler: Whether to use `threads` or `processes` workers; if unspecified,
+                defaults to `processes` if a `preprocessor` is provided, else `threads`.
             **compute_kwds: Additional keywords to pass to `dask.compute`,
                 or if `client` is provided, `client.compute`.
 
@@ -268,8 +270,9 @@ class GifAnimator(BaseAnimator):
 
     gifsicle_options: List[str] = (
         "--optimize=2",
-        "--no-conserve-memory",
+        "--loopcount=0",
         "--no-warnings",
+        "--no-conserve-memory",
     )
 
     _output_extension: str = PrivateAttr(".gif")
@@ -346,7 +349,7 @@ class Mp4Animator(BaseAnimator):
         Concatenates the incomplete animations to create a more complete animation.
         """
         intermediate_path = super()._concat_animations(partitioned_animations)
-        input_path = self._temporary_directory / f"{uuid.uuid1()}.txt"
+        input_path = self._temporary_directory / f"{uuid.uuid4().hex}.txt"
         input_text = "\n".join(
             f"file '{animation}'" for animation in partitioned_animations
         )
@@ -354,7 +357,7 @@ class Mp4Animator(BaseAnimator):
 
         ffmpeg_options = " ".join(self.ffmpeg_options)
         cmd = shlex.split(
-            f"ffmpeg -safe 0 -f concat {ffmpeg_options} "
+            f"ffmpeg -f concat {ffmpeg_options} -safe 0 "
             f"-i '{input_path}' -c copy '{intermediate_path}'"
         )
         run = subprocess.run(cmd, capture_output=True)

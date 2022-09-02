@@ -9,7 +9,7 @@ from pathlib import Path
 from shutil import rmtree
 from tempfile import mkdtemp
 from typing import List, Optional, Union
-from uuid import uuid1
+from uuid import uuid4
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -44,14 +44,18 @@ class Example(BaseModel, extra=Extra.allow):
         )
 
     @contextmanager
-    def time_run(self):
+    def time_run(self) -> float:
         """
         A context manager for tracking and printing the runtime.
+
+        Returns:
+            The time it took to complete the run in seconds.
         """
         start = timeit.default_timer()
         yield
         stop = timeit.default_timer()
-        print(f"Runtime: {stop - start} seconds")
+        runtime = stop - start
+        print(f"Runtime: {runtime} seconds")
 
     def cleanup_images(self):
         """
@@ -107,7 +111,7 @@ class RandomWalkExample(Example):
         if self.to_bytes_io:
             output = BytesIO()
         else:
-            output = self._temporary_directory / f"{uuid1()}.png"
+            output = self._temporary_directory / f"{uuid4().hex}.png"
         fig.savefig(output, transparent=False, facecolor="white")
 
         plt.close()
@@ -170,7 +174,7 @@ class AirTemperatureExample(Example):
         if self.to_bytes_io:
             output = BytesIO()
         else:
-            output = self._temporary_directory / f"{uuid1()}.png"
+            output = self._temporary_directory / f"{uuid4().hex}.png"
 
         fig.savefig(output, transparent=False, facecolor="white")
 
