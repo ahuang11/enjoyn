@@ -8,10 +8,10 @@ from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, Extra
 
 
-class Preprocessor(BaseModel):
+class Preprocessor(BaseModel, extra=Extra.forbid):
     """
     Used to store a function and its inputs.
 
