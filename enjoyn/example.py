@@ -44,7 +44,7 @@ class Example(BaseModel, extra=Extra.allow):
         )
 
     @contextmanager
-    def time_run(self) -> float:
+    def time_run(self):
         """
         A context manager for tracking and printing the runtime.
 
