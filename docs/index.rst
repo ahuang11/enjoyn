@@ -22,6 +22,7 @@ Don't forget to star the project if you like the project!
    :caption: Gallery
 
    gallery/sine_wave
+   gallery/pygments_code
 
 .. toctree::
    :maxdepth: 2
