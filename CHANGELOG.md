@@ -25,4 +25,4 @@ Released on ????? ?th, 20??.
 
 ### Added
 
-- `task_name` task - [#1](https://github.com/ahuang11/enjoyn/pull/1)
+- Added `GifAnimator`, `Mp4Animator`, `Preprocessor` - [#1](https://github.com/ahuang11/enjoyn/pull/1)
