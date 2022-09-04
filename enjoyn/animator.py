@@ -304,7 +304,7 @@ class GifAnimator(BaseAnimator):
             for a full list of available options.
     """
 
-    output_path: Optional[Path] = "enjoyn.gif"
+    output_path: Path = "enjoyn.gif"
     gifsicle_options: List[str] = (
         "--optimize=2",
         "--loopcount=0",
@@ -359,7 +359,7 @@ class Mp4Animator(BaseAnimator):
             for a full list of available options.
     """
 
-    output_path: Optional[Path] = "enjoyn.mp4"
+    output_path: Path = "enjoyn.mp4"
     ffmpeg_options: List[str] = ("-loglevel warning",)
 
     _output_extension: str = PrivateAttr(".mp4")
