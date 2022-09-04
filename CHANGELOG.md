@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `MatplotlibPreprocessor` to automatically save figure and close - [#19](https://github.com/ahuang11/enjoyn/pull/19)
+
 ### Changed
 
 ### Deprecated
