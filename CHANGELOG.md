@@ -8,8 +8,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
-- Added `show_progress` to toggle progress bars - [#16](https://github.com/ahuang11/enjoyn/pull/16)
-- Added `show_output` to toggle embedding output inline - [#17](https://github.com/ahuang11/enjoyn/pull/17)
 
 ### Changed
 
@@ -20,6 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## 0.1.1
+
+Released on Sept 3rd, 2022.
+
+- Added `show_progress` to toggle progress bars - [#16](https://github.com/ahuang11/enjoyn/pull/16)
+- Added `show_output` to toggle embedding output inline - [#17](https://github.com/ahuang11/enjoyn/pull/17)
 
 ## 0.1.0
 
