@@ -287,9 +287,9 @@ class BaseAnimator(BaseModel):
 
         if self.show_output and (Image or Video):
             try:
-                return Image(output_path, embed=True)
+                return Image(output_path)
             except ValueError:
-                return Video(output_path, embed=True)
+                return Video(output_path)
         else:
             return output_path
 
