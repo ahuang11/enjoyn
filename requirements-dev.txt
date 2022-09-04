@@ -19,3 +19,4 @@ graphviz
 pygifsicle
 matplotlib
 netcdf4
+ipython

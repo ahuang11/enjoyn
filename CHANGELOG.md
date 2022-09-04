@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 ### Added
+- Added `show_progress` to toggle progress bars - [#16](https://github.com/ahuang11/enjoyn/pull/16)
+- Added `show_output` to toggle embedding output inline - [#17](https://github.com/ahuang11/enjoyn/pull/17)
 
 ### Changed
 
