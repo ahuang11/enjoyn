@@ -6,6 +6,7 @@ import shlex
 import shutil
 import subprocess
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
@@ -207,12 +208,26 @@ class BaseAnimator(BaseModel):
         else:
             return output_path
 
+    @contextmanager
+    def _toggle_progress_bar(self, show_progress, client):
+        """
+        Determines whether the progress bar should be displayed.
+        """
+        if show_progress is None and client is None:
+            show_progress = True
+
+        if show_progress:
+            yield dask.diagnostics.ProgressBar()
+        else:
+            yield
+
     def compute(
         self,
         partition_size: Optional[int] = None,
         split_every: Optional[int] = None,
         client: Optional["Client"] = None,
         scheduler: Optional[str] = None,
+        show_progress: Optional[bool] = None,
         **compute_kwds: Dict[str, Any],
     ) -> Path:
         """
@@ -227,6 +242,8 @@ class BaseAnimator(BaseModel):
                 client, which has limited options.
             scheduler: Whether to use `threads` or `processes` workers; if unspecified,
                 defaults to `processes` if a `preprocessor` is provided, else `threads`.
+            show_progress: Whether to display the progress bar; if None, will default to
+                displaying if `client` is not provided.
             **compute_kwds: Additional keywords to pass to `dask.compute`,
                 or if `client` is provided, `client.compute`.
 
@@ -249,10 +266,10 @@ class BaseAnimator(BaseModel):
                 scheduler = "processes" if self.preprocessor else "threads"
             compute_kwds["scheduler"] = scheduler
 
-            if client is not None:
-                output_path = client.compute(plan, **compute_kwds).result()
-            else:
-                with dask.diagnostics.ProgressBar():
+            with self._toggle_progress_bar(show_progress, client):
+                if client is not None:
+                    output_path = client.compute(plan, **compute_kwds).result()
+                else:
                     output_path = dask.compute(plan, **compute_kwds)[0]
 
         return output_path

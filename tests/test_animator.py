@@ -6,6 +6,7 @@ import pandas as pd
 import pytest
 import xarray as xr
 from dask import is_dask_collection
+from dask.diagnostics import ProgressBar
 from dask.distributed import Client
 from IPython.core.display import Image
 from pydantic import ValidationError
@@ -166,6 +167,20 @@ class TestBaseAnimator(StandardAnimatorSuite):
         animator._output_extension = ".gif"
         with pytest.raises(ValueError, match="The output path must end in '.gif'"):
             animator.plan()
+
+    @pytest.mark.parametrize("show_progress", [None, True])
+    def test_toggle_progress(self, animator, show_progress):
+        with animator._toggle_progress_bar(
+            show_progress=show_progress, client=None
+        ) as progress_bar:
+            assert isinstance(progress_bar, ProgressBar)
+
+    @pytest.mark.parametrize("show_progress", [None, False])
+    def test_toggle_progress_disabled(self, animator, show_progress):
+        with animator._toggle_progress_bar(
+            show_progress=show_progress, client=Client()
+        ) as progress_bar:
+            assert progress_bar is None
 
 
 class RunnableAnimatorSuite(StandardAnimatorSuite):
