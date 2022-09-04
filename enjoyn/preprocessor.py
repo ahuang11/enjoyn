@@ -5,7 +5,7 @@ apply to each item of the animator.
 
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, Type
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 import numpy as np
 from pydantic import BaseModel, Extra
@@ -18,7 +18,8 @@ class Preprocessor(BaseModel, extra=Extra.forbid):
     Args:
         func: The function to apply to each item of the animator; the function
             must accept the item to process as the first positional arg and
-            must return either a `Path`, `str`, `bytes`, or `np.ndarray` type.
+            must return either a `Path`, `str`, `BytesIO`, `bytes`, or `np.ndarray`
+            type.
         args: The additional arguments to pass to the function.
         kwds: The additional keywords to pass to the function.
     """
@@ -29,7 +30,16 @@ class Preprocessor(BaseModel, extra=Extra.forbid):
 
     _valid_return_types: Tuple[Type] = (Path, str, BytesIO, bytes, np.ndarray)
 
-    def apply_on(self, item):
+    def apply_on(self, item) -> Union[Path, str, BytesIO, bytes, np.ndarray]:
+        """
+        Applies the func, along with its args and kwds, to the item.
+
+        Args:
+            item The item to apply the function on.
+
+        Returns:
+            The preprocessed item.
+        """
         args = self.args or ()
         kwds = self.kwds or {}
         item = self.func(item, *args, **kwds)
