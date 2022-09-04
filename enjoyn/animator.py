@@ -351,7 +351,7 @@ class GifAnimator(BaseAnimator):
 
 class Mp4Animator(BaseAnimator):
     """
-    Used for animating images into a GIF  nimation.
+    Used for animating images into a GIF animation.
 
     Args:
         ffmpeg_options: A tuple of options to pass to `ffmpeg`; see
