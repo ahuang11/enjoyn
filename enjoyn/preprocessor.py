@@ -35,7 +35,10 @@ class Preprocessor(BaseModel, extra=Extra.forbid):
         Applies the func, along with its args and kwds, to the item.
 
         Args:
-            item
+            item The item to apply the function on.
+
+        Returns:
+            The preprocessed item.
         """
         args = self.args or ()
         kwds = self.kwds or {}
