@@ -168,19 +168,15 @@ class TestBaseAnimator(StandardAnimatorSuite):
         with pytest.raises(ValueError, match="The output path must end in '.gif'"):
             animator.plan()
 
-    @pytest.mark.parametrize("show_progress", [None, True])
+    @pytest.mark.parametrize("show_progress", [True, False, None])
     def test_toggle_progress(self, animator, show_progress):
-        with animator._toggle_progress_bar(
-            show_progress=show_progress, client=None
+        with animator._display_progress_bar(
+            show_progress=show_progress
         ) as progress_bar:
-            assert isinstance(progress_bar, ProgressBar)
-
-    @pytest.mark.parametrize("show_progress", [None, False])
-    def test_toggle_progress_disabled(self, animator, show_progress):
-        with animator._toggle_progress_bar(
-            show_progress=show_progress, client=Client()
-        ) as progress_bar:
-            assert progress_bar is None
+            if show_progress:
+                assert isinstance(progress_bar, ProgressBar)
+            else:
+                assert progress_bar is None
 
 
 class RunnableAnimatorSuite(StandardAnimatorSuite):
