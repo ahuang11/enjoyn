@@ -18,6 +18,10 @@ import imageio.v3 as iio
 import numpy as np
 
 try:
+    from IPython.display import Image, Video
+except ImportError:  # pragma: no cover
+    Image = Video = None
+try:
     import pygifsicle
 except ImportError:  # pragma: no cover
     pygifsicle = None
@@ -50,6 +54,8 @@ class BaseAnimator(BaseModel):
         imwrite_kwds: Additional keywords to pass to `imageio.imwrite`.
         scratch_directory: The base directory to create the temporary directory
             for intermediary files.
+        show_output: Whether to display the output inline; only available in an
+            IPython environment.
     """
 
     items: List[Any] = Field(min_items=2)
@@ -59,9 +65,18 @@ class BaseAnimator(BaseModel):
     imwrite_kwds: Optional[Dict[str, Any]] = None
     scratch_directory: Optional[Path] = None
 
+    show_output: bool = True
+
     _output_extension: Optional[str] = PrivateAttr(None)
     _temporary_directory: Optional[Path] = PrivateAttr(None)
     _debug: bool = PrivateAttr(False)
+
+    @root_validator(pre=True)
+    def _plugin_installed(cls, values):  # pragma: no cover
+        """
+        Check whether required libraries are installed.
+        """
+        return values
 
     @validator("items", pre=True)
     def _serialize_array(cls, value) -> List:
@@ -225,9 +240,9 @@ class BaseAnimator(BaseModel):
         split_every: Optional[int] = None,
         client: Optional["Client"] = None,
         scheduler: Optional[str] = None,
-        show_progress: Optional[bool] = True,
+        show_progress: bool = True,
         **compute_kwds: Dict[str, Any],
-    ) -> Path:
+    ) -> Union[Image, Video, Path]:
         """
         Execute the plan to create the animation, partitioning items across workers,
         applying the preprocessor, if any, serializing the items into an incomplete
@@ -270,7 +285,13 @@ class BaseAnimator(BaseModel):
                 with self._display_progress_bar(show_progress):
                     output_path = dask.compute(plan, **compute_kwds)[0]
 
-        return output_path
+        if self.show_output and (Image or Video):
+            try:
+                return Image(output_path)
+            except ValueError:
+                return Video(output_path)
+        else:
+            return output_path
 
 
 class GifAnimator(BaseAnimator):
@@ -283,6 +304,7 @@ class GifAnimator(BaseAnimator):
             for a full list of available options.
     """
 
+    output_path: Optional[Path] = "enjoyn.gif"
     gifsicle_options: List[str] = (
         "--optimize=2",
         "--loopcount=0",
@@ -337,6 +359,7 @@ class Mp4Animator(BaseAnimator):
             for a full list of available options.
     """
 
+    output_path: Optional[Path] = "enjoyn.mp4"
     ffmpeg_options: List[str] = ("-loglevel warning",)
 
     _output_extension: str = PrivateAttr(".mp4")

@@ -8,7 +8,7 @@ import xarray as xr
 from dask import is_dask_collection
 from dask.diagnostics import ProgressBar
 from dask.distributed import Client
-from IPython.core.display import Image
+from IPython.core.display import Image, Video
 from pydantic import ValidationError
 
 from enjoyn.animator import BaseAnimator, GifAnimator, Mp4Animator, Preprocessor
@@ -25,7 +25,7 @@ class StandardAnimatorSuite:
 
     @pytest.fixture
     def animator(self, animator_class, items, output_path):
-        return animator_class(items=items, output_path=output_path)
+        return animator_class(items=items, output_path=output_path, show_output=False)
 
 
 class TestBaseAnimator(StandardAnimatorSuite):
@@ -207,6 +207,15 @@ class TestGifAnimator(RunnableAnimatorSuite):
         with pytest.raises(RuntimeError, match="gifsicle failed"):
             animator.compute()
 
+    @pytest.mark.parametrize("show_output", [True, False])
+    def test_compute_show_output(self, animator, show_output):
+        animator.show_output = show_output
+        actual = animator.compute()
+        if show_output:
+            assert isinstance(actual, Image)
+        else:
+            assert actual == animator.output_path
+
 
 class TestMp4Animator(RunnableAnimatorSuite):
     @pytest.fixture
@@ -221,3 +230,12 @@ class TestMp4Animator(RunnableAnimatorSuite):
         animator.ffmpeg_options = ("no-option-like-this True",)
         with pytest.raises(RuntimeError, match="Invalid data found"):
             animator.compute()
+
+    @pytest.mark.parametrize("show_output", [True, False])
+    def test_compute_show_output(self, animator, show_output):
+        animator.show_output = show_output
+        actual = animator.compute()
+        if show_output:
+            assert isinstance(actual, Video)
+        else:
+            assert actual == animator.output_path
