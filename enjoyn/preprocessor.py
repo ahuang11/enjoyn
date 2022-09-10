@@ -9,7 +9,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
 try:
     import matplotlib.pyplot as plt
-except ImportError:
+except ImportError:  # pragma: no cover
     plt = None
 import numpy as np
 from pydantic import BaseModel, Extra, PrivateAttr, root_validator
@@ -89,9 +89,7 @@ class MatplotlibPreprocessor(Preprocessor):
             )
         return values
 
-    def apply_on(
-        self, item: Any, validate_type: bool = True
-    ) -> Union[Path, str, BytesIO, bytes, np.ndarray]:
+    def apply_on(self, item: Any, validate_type: bool = True) -> BytesIO:
         """
         Applies the func, along with its args and kwds, to the item; additionally, if a
         matplotlib type is returned, automatically save the plot to memory and close.
@@ -105,15 +103,10 @@ class MatplotlibPreprocessor(Preprocessor):
         """
         item = super().apply_on(item, validate_type=False)
 
-        try:
-            if isinstance(item, list):
-                item = item[0]
-            _ = plt.getp(item, "figure")
+        if plt.gcf().axes:
             item = BytesIO()
             plt.savefig(item)
-            plt.close()
-        except ValueError:
-            pass
+            plt.close("all")
 
         self._validate_item(item, validate_type)
         return item
