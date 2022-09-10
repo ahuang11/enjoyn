@@ -7,8 +7,12 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 
+try:
+    import matplotlib.pyplot as plt
+except ImportError:  # pragma: no cover
+    plt = None
 import numpy as np
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel, Extra, PrivateAttr, root_validator
 
 
 class Preprocessor(BaseModel, extra=Extra.forbid):
@@ -28,22 +32,15 @@ class Preprocessor(BaseModel, extra=Extra.forbid):
     args: Optional[List[Any]] = None
     kwds: Optional[Dict[str, Any]] = None
 
-    _valid_return_types: Tuple[Type] = (Path, str, BytesIO, bytes, np.ndarray)
+    _valid_return_types: Tuple[Type] = PrivateAttr(
+        (Path, str, BytesIO, bytes, np.ndarray)
+    )
 
-    def apply_on(self, item) -> Union[Path, str, BytesIO, bytes, np.ndarray]:
+    def _validate_item(self, item: Any, validate_type: bool):
         """
-        Applies the func, along with its args and kwds, to the item.
-
-        Args:
-            item The item to apply the function on.
-
-        Returns:
-            The preprocessed item.
+        Checks whether the item is of valid return type.
         """
-        args = self.args or ()
-        kwds = self.kwds or {}
-        item = self.func(item, *args, **kwds)
-        if not isinstance(item, self._valid_return_types):
+        if validate_type and not isinstance(item, self._valid_return_types):
             callable_name = self.func.__name__
             return_type = type(item).__name__
             valid_return_types_names = ", ".join(
@@ -54,4 +51,62 @@ class Preprocessor(BaseModel, extra=Extra.forbid):
                 f"`{return_type}` type; update '{callable_name}' so the "
                 f"returned object is either {valid_return_types_names} type"
             )
+
+    def apply_on(
+        self, item: Any, validate_type: bool = True
+    ) -> Union[Path, str, BytesIO, bytes, np.ndarray]:
+        """
+        Applies the func, along with its args and kwds, to the item.
+
+        Args:
+            item: The item to apply the function on.
+            validate_type: Whether to validate the preprocessed item is correct type.
+
+        Returns:
+            The preprocessed item.
+        """
+        args = self.args or ()
+        kwds = self.kwds or {}
+        item = self.func(item, *args, **kwds)
+
+        self._validate_item(item, validate_type)
+        return item
+
+
+class MatplotlibPreprocessor(Preprocessor):
+    """
+    Used to store a matplotlib function and its inputs.
+    """
+
+    @root_validator(pre=True)
+    def _plugin_installed(cls, values):  # pragma: no cover
+        """
+        Check whether required libraries are installed.
+        """
+        if plt is None:
+            raise ImportError(
+                "Ensure matplotlib is installed with " "`pip install -U matplotlib`"
+            )
+        return values
+
+    def apply_on(self, item: Any, validate_type: bool = True) -> BytesIO:
+        """
+        Applies the func, along with its args and kwds, to the item; additionally, if a
+        matplotlib type is returned, automatically save the plot to memory and close.
+
+        Args:
+            item: The item to apply the function on.
+            validate_type: Whether to validate the preprocessed item is correct type.
+
+        Returns:
+            The preprocessed item.
+        """
+        item = super().apply_on(item, validate_type=False)
+
+        if plt.gcf().axes:
+            item = BytesIO()
+            plt.savefig(item)
+            plt.close("all")
+
+        self._validate_item(item, validate_type)
         return item
