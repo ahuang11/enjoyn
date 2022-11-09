@@ -6,6 +6,7 @@ import shlex
 import shutil
 import subprocess
 import uuid
+from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -39,7 +40,9 @@ if TYPE_CHECKING:  # pragma: no cover
 from .preprocessor import Preprocessor
 
 
-class BaseAnimator(BaseModel):
+# Do not converts Args section to Attributes
+# for it to show up neatly in output docs.
+class BaseAnimator(BaseModel, ABC):
     """
     The base animator containing most of the common inputs and methods used in
     other animators inheriting from this. Note, this should not to be used directly.
@@ -72,11 +75,12 @@ class BaseAnimator(BaseModel):
     _debug: bool = PrivateAttr(False)
 
     @root_validator(pre=True)
+    @abstractmethod
     def _plugin_installed(cls, values):  # pragma: no cover
         """
         Check whether required libraries are installed.
         """
-        return values
+        raise NotImplementedError()
 
     @validator("items", pre=True)
     def _serialize_array(cls, value) -> List:
@@ -164,10 +168,7 @@ class BaseAnimator(BaseModel):
         """
         Concatenates the incomplete animations to create a more complete animation.
         """
-        intermediate_path = (
-            self._temporary_directory / f"{uuid.uuid4().hex}{self._output_extension}"
-        ).absolute()
-        return intermediate_path
+        raise NotImplementedError()
 
     @dask.delayed
     def _transfer_output(self, intermediate_path: Path) -> Path:
@@ -223,8 +224,9 @@ class BaseAnimator(BaseModel):
         else:
             return output_path
 
+    @staticmethod
     @contextmanager
-    def _display_progress_bar(self, show_progress):
+    def _display_progress_bar(show_progress):
         """
         Toggles displaying a progress bar.
         """
@@ -335,7 +337,9 @@ class GifAnimator(BaseAnimator):
         """
         Concatenates the incomplete animations to create a more complete animation.
         """
-        intermediate_path = super()._concat_animations(partitioned_animations)
+        intermediate_path = (
+            self._temporary_directory / f"{uuid.uuid4().hex}{self._output_extension}"
+        ).absolute()
         pygifsicle.gifsicle(
             sources=list(partitioned_animations),
             destination=intermediate_path,
@@ -351,7 +355,7 @@ class GifAnimator(BaseAnimator):
 
 class Mp4Animator(BaseAnimator):
     """
-    Used for animating images into a GIF animation.
+    Used for animating images into a MP4 animation.
 
     Args:
         ffmpeg_options: A tuple of options to pass to `ffmpeg`; see
@@ -386,7 +390,9 @@ class Mp4Animator(BaseAnimator):
         """
         Concatenates the incomplete animations to create a more complete animation.
         """
-        intermediate_path = super()._concat_animations(partitioned_animations)
+        intermediate_path = (
+            self._temporary_directory / f"{uuid.uuid4().hex}{self._output_extension}"
+        ).absolute()
         input_path = self._temporary_directory / f"{uuid.uuid4().hex}.txt"
         input_text = "\n".join(
             f"file '{animation}'" for animation in partitioned_animations
