@@ -11,6 +11,12 @@ try:
     import matplotlib.pyplot as plt
 except ImportError:  # pragma: no cover
     plt = None
+
+try:
+    import holoviews as hv
+except ImportError:  # pragma: no cover
+    hv = None
+
 import numpy as np
 from pydantic import BaseModel, Extra, PrivateAttr, root_validator
 
@@ -85,7 +91,7 @@ class MatplotlibPreprocessor(Preprocessor):
         """
         if plt is None:
             raise ImportError(
-                "Ensure matplotlib is installed with " "`pip install -U matplotlib`"
+                "Ensure matplotlib is installed with `pip install -U matplotlib`"
             )
         return values
 
@@ -103,10 +109,49 @@ class MatplotlibPreprocessor(Preprocessor):
         """
         item = super().apply_on(item, validate_type=False)
 
-        if plt.gcf().axes:
+        if plt.gcf().axes:  # if active axes
             item = BytesIO()
             plt.savefig(item)
             plt.close("all")
+
+        self._validate_item(item, validate_type)
+        return item
+
+
+class HoloViewsPreprocessor(Preprocessor):
+    """
+    Used to store a HoloViews function and its inputs.
+    """
+
+    @root_validator(pre=True)
+    def _plugin_installed(cls, values):  # pragma: no cover
+        """
+        Check whether required libraries are installed.
+        """
+        if hv is None:
+            raise ImportError(
+                "Ensure holoviews is installed with `pip install -U holoviews`"
+            )
+        return values
+
+    def apply_on(self, item: Any, validate_type: bool = True) -> BytesIO:
+        """
+        Applies the func, along with its args and kwds, to the item; additionally, if a
+        HoloViews type is returned, automatically save the plot to memory and close.
+
+        Args:
+            item: The item to apply the function on.
+            validate_type: Whether to validate the preprocessed item is correct type.
+
+        Returns:
+            The preprocessed item.
+        """
+        item = super().apply_on(item, validate_type=False)
+
+        if isinstance(item, hv.Element):
+            buf = BytesIO()
+            hv.save(item, buf, fmt="png")
+            item = buf
 
         self._validate_item(item, validate_type)
         return item
