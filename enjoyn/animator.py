@@ -170,11 +170,12 @@ class BaseAnimator(BaseModel, ABC):
         )
         return temporary_path
 
+    @abstractmethod
     def _concat_animations(self, partitioned_animations: List[Path]) -> Path:
         """
         Concatenates the incomplete animations to create a more complete animation.
         """
-        raise NotImplementedError()
+        pass
 
     @dask.delayed
     def _transfer_output(self, temporary_path: Path) -> Path:
