@@ -72,7 +72,6 @@ class BaseAnimator(BaseModel, ABC):
 
     _output_extension: Optional[str] = PrivateAttr(None)
     _temporary_directory: Optional[str] = PrivateAttr(None)
-    _debug: bool = PrivateAttr(False)
 
     @root_validator(pre=True)
     @abstractmethod
@@ -80,7 +79,7 @@ class BaseAnimator(BaseModel, ABC):
         """
         Check whether required libraries are installed.
         """
-        raise NotImplementedError()
+        pass
 
     @validator("items", pre=True)
     def _serialize_array(cls, value) -> List:
@@ -154,6 +153,12 @@ class BaseAnimator(BaseModel, ABC):
         """
         Serializes items in the partition and creates an incomplete animation.
         """
+        if self._temporary_directory is None:
+            raise RuntimeError(
+                "Use the built-in `compute` method instead; the `plan` method "
+                "does not have the temporary directory set internally yet."
+            )
+
         images = [self._serialize_item(item) for item in partitioned_items]
         temporary_path = self._create_temporary_path()
         imwrite_kwds = self.imwrite_kwds or {}
@@ -165,11 +170,12 @@ class BaseAnimator(BaseModel, ABC):
         )
         return temporary_path
 
+    @abstractmethod
     def _concat_animations(self, partitioned_animations: List[Path]) -> Path:
         """
         Concatenates the incomplete animations to create a more complete animation.
         """
-        raise NotImplementedError()
+        pass
 
     @dask.delayed
     def _transfer_output(self, temporary_path: Path) -> Path:
@@ -384,15 +390,17 @@ class Mp4Animator(BaseAnimator):
         Concatenates the incomplete animations to create a more complete animation.
         """
         temporary_path = self._create_temporary_path()
+        temporary_input_file = self._create_temporary_path()
         with NamedTemporaryFile(suffix=".txt") as temporary_input_file:
             input_text = "\n".join(
                 f"file '{animation}'" for animation in partitioned_animations
             )
-            temporary_input_file.write(input_text)
+            with open(temporary_input_file.name, "w") as f:
+                f.write(input_text)
 
             ffmpeg_options = " ".join(self.ffmpeg_options)
             cmd = shlex.split(
-                f"ffmpeg -f concat {ffmpeg_options} -safe 0 "
+                f"ffmpeg -y -f concat {ffmpeg_options} -safe 0 "
                 f"-i '{temporary_input_file.name}' -c copy '{temporary_path}'"
             )
             run = subprocess.run(cmd, capture_output=True)

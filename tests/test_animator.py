@@ -34,11 +34,6 @@ class RunnableAnimatorSuite:
             animator.compute(client=client, scheduler=scheduler) == animator.output_path
         )
 
-    def test_compute_debug(self, animator):
-        animator._debug = True
-        animator.compute()
-        animator._temporary_directory.name == "enjoyn_debug_workspace"
-
     def test_instantiation_required_args(self, items, output_path, animator_class):
         instantiated_animator = animator_class(items=items, output_path=output_path)
         assert instantiated_animator.items == items
@@ -145,10 +140,6 @@ class RunnableAnimatorSuite:
     def test_animate_images_no_temporary_directory(self, animator, items):
         with pytest.raises(RuntimeError, match="Use the built-in"):
             animator._animate_images(items)
-
-    def test_concat_animations(self, animator):
-        with pytest.raises(TypeError, match="unsupported"):
-            animator._concat_animations(["a", "b"])
 
     def test_transfer_output(self, animator):
         intermediate_path = Path("intermediate.txt")

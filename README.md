@@ -1,6 +1,6 @@
 <p align="center">
    <a href="https://github.com/ahuang11/enjoyn" alt="Enjoyn Logo">
-    <img src="https://raw.githubusercontent.com/ahuang11/enjoyn/main/docs/enjoyn_white.svg" /></a>
+    <img src="https://raw.githubusercontent.com/ahuang11/enjoyn/main/docs/assets/enjoyn_white.svg" /></a>
    <br>
    <a href="https://pypi.python.org/pypi/enjoyn/" alt="PyPI version">
      <img alt="PyPI" src="https://img.shields.io/pypi/v/enjoyn?color=CA2A7A&labelColor=090422"></a>
@@ -13,7 +13,7 @@
    <a href="https://github.com/ahuang11/enjoyn/graphs/contributors" alt="Contributors">
      <img src="https://img.shields.io/github/contributors/ahuang11/enjoyn?color=CA2A7A&labelColor=090422" /></a>
    <a href="https://github.com/ahuang11/enjoyn/tree/main/tests" alt="Coverage">
-     <img src="https://raw.githubusercontent.com/ahuang11/enjoyn/main/docs/coverage.svg" /></a>
+     <img src="https://raw.githubusercontent.com/ahuang11/enjoyn/main/docs/assets/coverage.svg" /></a>
 </p>
 
 ## Welcome!
