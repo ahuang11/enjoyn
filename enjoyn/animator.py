@@ -137,6 +137,8 @@ class BaseAnimator(BaseModel, ABC):
         if self.preprocessor:
             item = self.preprocessor.apply_on(item)
         image = iio.imread(item) if not isinstance(item, np.ndarray) else item
+        if hasattr(item, "close"):
+            item.close()
         return image
 
     def _create_temporary_path(self) -> Path:
@@ -306,7 +308,7 @@ class GifAnimator(BaseAnimator):
             for a full list of available options.
     """
 
-    output_path: Path = "enjoyn.gif"
+    output_path: Path = Path("enjoyn.gif")
     gifsicle_options: List[str] = (
         "--optimize=2",
         "--loopcount=0",
@@ -362,7 +364,7 @@ class Mp4Animator(BaseAnimator):
             for a full list of available options.
     """
 
-    output_path: Path = "enjoyn.mp4"
+    output_path: Path = Path("enjoyn.mp4")
     ffmpeg_options: List[str] = ("-loglevel warning",)
 
     _output_extension: str = PrivateAttr(".mp4")
