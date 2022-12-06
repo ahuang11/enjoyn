@@ -32,7 +32,7 @@ exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_logo = "enjoyn.svg"
+html_logo = "assets/enjoyn.svg"
 html_theme = "sphinx_book_theme"
 html_static_path = ["_static"]
 html_theme_options = {
