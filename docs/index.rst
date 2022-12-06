@@ -23,6 +23,7 @@ Don't forget to star the project if you like the project!
 
    gallery/sine_wave
    gallery/pygments_code
+   gallery/parallel_holoviews
 
 .. toctree::
    :maxdepth: 2
