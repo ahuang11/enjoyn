@@ -2,13 +2,14 @@
 This module contains animators that join images into the desired animation format.
 """
 
+import itertools
 import shlex
 import shutil
 import subprocess
-import uuid
+from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from pathlib import Path
-from tempfile import TemporaryDirectory
+from tempfile import NamedTemporaryFile, TemporaryDirectory, mkstemp
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 
 import dask.bag
@@ -39,7 +40,9 @@ if TYPE_CHECKING:  # pragma: no cover
 from .preprocessor import Preprocessor
 
 
-class BaseAnimator(BaseModel):
+# Do not converts Args section to Attributes
+# for it to show up neatly in output docs.
+class BaseAnimator(BaseModel, ABC):
     """
     The base animator containing most of the common inputs and methods used in
     other animators inheriting from this. Note, this should not to be used directly.
@@ -68,15 +71,15 @@ class BaseAnimator(BaseModel):
     show_output: bool = True
 
     _output_extension: Optional[str] = PrivateAttr(None)
-    _temporary_directory: Optional[Path] = PrivateAttr(None)
-    _debug: bool = PrivateAttr(False)
+    _temporary_directory: Optional[str] = PrivateAttr(None)
 
     @root_validator(pre=True)
+    @abstractmethod
     def _plugin_installed(cls, values):  # pragma: no cover
         """
         Check whether required libraries are installed.
         """
-        return values
+        pass
 
     @validator("items", pre=True)
     def _serialize_array(cls, value) -> List:
@@ -136,47 +139,52 @@ class BaseAnimator(BaseModel):
         image = iio.imread(item) if not isinstance(item, np.ndarray) else item
         return image
 
+    def _create_temporary_path(self) -> Path:
+        temporary_path = Path(
+            mkstemp(
+                prefix="enjoyn_",
+                suffix=self._output_extension,
+                dir=self._temporary_directory,
+            )[1]
+        )
+        return temporary_path
+
     def _animate_images(self, partitioned_items: List[Any]) -> Path:
         """
         Serializes items in the partition and creates an incomplete animation.
         """
-        images = [self._serialize_item(item) for item in partitioned_items]
-        try:
-            intermediate_path = (
-                self._temporary_directory
-                / f"{uuid.uuid4().hex}{self._output_extension}"
-            )
-            imwrite_kwds = self.imwrite_kwds or {}
-            iio.imwrite(
-                intermediate_path,
-                images,
-                extension=self._output_extension,
-                **imwrite_kwds,
-            )
-        except (TypeError, FileNotFoundError) as exc:
+        if self._temporary_directory is None:
             raise RuntimeError(
-                f"Use the built-in `compute` method instead; the `plan` method "
-                f"does not have the temporary directory set internally yet: {exc}"
-            ) from exc
-        return intermediate_path
+                "Use the built-in `compute` method instead; the `plan` method "
+                "does not have the temporary directory set internally yet."
+            )
 
-    def _concat_animations(self, partitioned_animations) -> Path:
+        images = [self._serialize_item(item) for item in partitioned_items]
+        temporary_path = self._create_temporary_path()
+        imwrite_kwds = self.imwrite_kwds or {}
+        iio.imwrite(
+            temporary_path,
+            images,
+            extension=self._output_extension,
+            **imwrite_kwds,
+        )
+        return temporary_path
+
+    @abstractmethod
+    def _concat_animations(self, partitioned_animations: List[Path]) -> Path:
         """
         Concatenates the incomplete animations to create a more complete animation.
         """
-        intermediate_path = (
-            self._temporary_directory / f"{uuid.uuid4().hex}{self._output_extension}"
-        ).absolute()
-        return intermediate_path
+        pass
 
     @dask.delayed
-    def _transfer_output(self, intermediate_path: Path) -> Path:
+    def _transfer_output(self, temporary_path: Path) -> Path:
         """
         Transfers the final animation from a temporary
         directory to the desired output path.
         """
         output_path = self.output_path.absolute()
-        shutil.move(intermediate_path, output_path)
+        shutil.move(temporary_path, output_path)
         return output_path
 
     def plan(
@@ -211,20 +219,21 @@ class BaseAnimator(BaseModel):
             )
 
         input_bag = dask.bag.from_sequence(self.items, partition_size=partition_size)
-        intermediate_path = input_bag.reduction(
+        temporary_file = input_bag.reduction(
             self._animate_images,
             self._concat_animations,
             split_every=split_every,
         )
-        output_path = self._transfer_output(intermediate_path)
+        output_path = self._transfer_output(temporary_file)
 
         if visualize:
             return output_path.visualize()
         else:
             return output_path
 
+    @staticmethod
     @contextmanager
-    def _display_progress_bar(self, show_progress):
+    def _display_progress_bar(show_progress):
         """
         Toggles displaying a progress bar.
         """
@@ -263,22 +272,15 @@ class BaseAnimator(BaseModel):
         Returns:
             The path to the output animation.
         """
-        with TemporaryDirectory(
-            prefix="enjoyn_", dir=self.scratch_directory
-        ) as temporary_directory:
-            if self._debug:
-                temporary_directory = "enjoyn_debug_workspace"
-            self._temporary_directory = Path(temporary_directory).absolute()
-            self._temporary_directory.mkdir(exist_ok=True)
+        plan = self.plan(
+            partition_size=partition_size, split_every=split_every, visualize=False
+        )
 
-            plan = self.plan(
-                partition_size=partition_size, split_every=split_every, visualize=False
-            )
+        if scheduler is None:
+            scheduler = "processes" if self.preprocessor else "threads"
+        compute_kwds["scheduler"] = scheduler
 
-            if scheduler is None:
-                scheduler = "processes" if self.preprocessor else "threads"
-            compute_kwds["scheduler"] = scheduler
-
+        with TemporaryDirectory(prefix="enjoyn_") as self._temporary_directory:
             if client is not None:
                 output_path = client.compute(plan, **compute_kwds).result()
             else:
@@ -331,27 +333,28 @@ class GifAnimator(BaseAnimator):
             )
         return values
 
-    def _concat_animations(self, partitioned_animations) -> Path:
+    def _concat_animations(self, partitioned_animations: itertools.chain) -> Path:
         """
         Concatenates the incomplete animations to create a more complete animation.
         """
-        intermediate_path = super()._concat_animations(partitioned_animations)
+        temporary_path = self._create_temporary_path()
+        partitioned_animations = list(partitioned_animations)
         pygifsicle.gifsicle(
             sources=list(partitioned_animations),
-            destination=intermediate_path,
+            destination=temporary_path,
             options=self.gifsicle_options,
         )
-        if not intermediate_path.exists():
+        if not temporary_path.stat().st_size:
             raise RuntimeError(
                 "gifsicle failed somewhere; ensure that the inputs, "
                 "`items`, `output_path`, `gifsicle_options` are valid"
             )
-        return intermediate_path
+        return temporary_path
 
 
 class Mp4Animator(BaseAnimator):
     """
-    Used for animating images into a GIF animation.
+    Used for animating images into a MP4 animation.
 
     Args:
         ffmpeg_options: A tuple of options to pass to `ffmpeg`; see
@@ -382,23 +385,25 @@ class Mp4Animator(BaseAnimator):
             )
         return values
 
-    def _concat_animations(self, partitioned_animations) -> Path:
+    def _concat_animations(self, partitioned_animations: itertools.chain) -> Path:
         """
         Concatenates the incomplete animations to create a more complete animation.
         """
-        intermediate_path = super()._concat_animations(partitioned_animations)
-        input_path = self._temporary_directory / f"{uuid.uuid4().hex}.txt"
-        input_text = "\n".join(
-            f"file '{animation}'" for animation in partitioned_animations
-        )
-        input_path.write_text(input_text)
+        temporary_path = self._create_temporary_path()
+        temporary_input_file = self._create_temporary_path()
+        with NamedTemporaryFile(suffix=".txt") as temporary_input_file:
+            input_text = "\n".join(
+                f"file '{animation}'" for animation in partitioned_animations
+            )
+            with open(temporary_input_file.name, "w") as f:
+                f.write(input_text)
 
-        ffmpeg_options = " ".join(self.ffmpeg_options)
-        cmd = shlex.split(
-            f"ffmpeg -f concat {ffmpeg_options} -safe 0 "
-            f"-i '{input_path}' -c copy '{intermediate_path}'"
-        )
-        run = subprocess.run(cmd, capture_output=True)
-        if run.returncode != 0:
-            raise RuntimeError(f"{run.stderr.decode()}")
-        return intermediate_path
+            ffmpeg_options = " ".join(self.ffmpeg_options)
+            cmd = shlex.split(
+                f"ffmpeg -y -f concat {ffmpeg_options} -safe 0 "
+                f"-i '{temporary_input_file.name}' -c copy '{temporary_path}'"
+            )
+            run = subprocess.run(cmd, capture_output=True)
+            if run.returncode != 0:
+                raise RuntimeError(f"{run.stderr.decode()}")
+        return temporary_path
