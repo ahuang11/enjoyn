@@ -137,6 +137,8 @@ class BaseAnimator(BaseModel, ABC):
         if self.preprocessor:
             item = self.preprocessor.apply_on(item)
         image = iio.imread(item) if not isinstance(item, np.ndarray) else item
+        if hasattr(item, "close"):
+            item.close()
         return image
 
     def _create_temporary_path(self) -> Path:
