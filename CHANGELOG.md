@@ -9,8 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `HoloViewsPreprocessor` to automatically save figure and close - [#19](https://github.com/ahuang11/enjoyn/pull/19)
-
 ### Changed
 
 ### Deprecated
@@ -20,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 ### Security
+
+## 0.1.3
+
+Released on December 5th, 2022.
+
+### Added
+
+- Added `HoloViewsPreprocessor` to automatically save figure and close - [#19](https://github.com/ahuang11/enjoyn/pull/19)
 
 ## 0.1.2
 
