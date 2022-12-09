@@ -37,7 +37,7 @@ if TYPE_CHECKING:  # pragma: no cover
     from dask.distributed import Client
     from typing_extensions import Self
 
-from .preprocessor import Preprocessor
+from .preprocessor import NullPreprocessor, Preprocessor
 
 
 # Do not converts Args section to Attributes
@@ -130,15 +130,12 @@ class BaseAnimator(BaseModel, ABC):
             file_paths = file_paths[:limit]
         return cls(items=file_paths, **animator_kwds)
 
-    def _serialize_item(self, item: Any) -> np.ndarray:
+    def _serialize_item(self, item: Any, preprocessor: Preprocessor) -> np.ndarray:
         """
         Applies the preprocessor to the item and serialize as a `np.array`.
         """
-        if self.preprocessor:
-            item = self.preprocessor.apply_on(item)
-        image = iio.imread(item) if not isinstance(item, np.ndarray) else item
-        if hasattr(item, "close"):
-            item.close()
+        with preprocessor.apply_on(item) as item:
+            image = iio.imread(item) if not isinstance(item, np.ndarray) else item
         return image
 
     def _create_temporary_path(self) -> Path:
@@ -161,7 +158,10 @@ class BaseAnimator(BaseModel, ABC):
                 "does not have the temporary directory set internally yet."
             )
 
-        images = [self._serialize_item(item) for item in partitioned_items]
+        preprocessor = self.preprocessor or NullPreprocessor()
+        images = [
+            self._serialize_item(item, preprocessor) for item in partitioned_items
+        ]
         temporary_path = self._create_temporary_path()
         imwrite_kwds = self.imwrite_kwds or {}
         iio.imwrite(

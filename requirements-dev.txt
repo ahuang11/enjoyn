@@ -20,3 +20,4 @@ pygifsicle
 matplotlib
 netcdf4
 ipython
+holoviews
