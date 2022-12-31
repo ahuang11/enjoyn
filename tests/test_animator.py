@@ -12,6 +12,7 @@ from IPython.core.display import Image, Video
 from pydantic import ValidationError
 
 from enjoyn.animator import GifAnimator, Mp4Animator, Preprocessor
+from enjoyn.preprocessor import NullPreprocessor
 
 
 class RunnableAnimatorSuite:
@@ -120,14 +121,13 @@ class RunnableAnimatorSuite:
 
     @pytest.mark.parametrize("item", ["imageio:astronaut.png", np.array([0])])
     def test_serialize_item(self, animator, item):
-        image = animator._serialize_item(item)
+        image = animator._serialize_item(item, NullPreprocessor())
         assert isinstance(image, np.ndarray)
 
     def test_serialize_item_with_preprocessor(self, animator):
         preprocessor = Preprocessor(func=lambda item: "imageio:astronaut.png")
-        animator.preprocessor = preprocessor
 
-        image = animator._serialize_item("item")
+        image = animator._serialize_item("item", preprocessor)
         assert isinstance(image, np.ndarray)
 
     def test_animate_images(self, animator, tmp_path, items):

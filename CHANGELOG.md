@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Use `contextmanager` for `Preprocessor.apply_on` - [#20](https://github.com/ahuang11/enjoyn/pull/20)
+
 ### Deprecated
 
 ### Removed

@@ -3,6 +3,7 @@ This module contains preprocessors that store functions to
 apply to each item of the animator.
 """
 
+from contextlib import contextmanager
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
@@ -58,6 +59,7 @@ class Preprocessor(BaseModel, extra=Extra.forbid):
                 f"returned object is either {valid_return_types_names} type"
             )
 
+    @contextmanager
     def apply_on(
         self, item: Any, validate_type: bool = True
     ) -> Union[Path, str, BytesIO, bytes, np.ndarray]:
@@ -68,7 +70,7 @@ class Preprocessor(BaseModel, extra=Extra.forbid):
             item: The item to apply the function on.
             validate_type: Whether to validate the preprocessed item is correct type.
 
-        Returns:
+        Yields:
             The preprocessed item.
         """
         args = self.args or ()
@@ -76,7 +78,7 @@ class Preprocessor(BaseModel, extra=Extra.forbid):
         item = self.func(item, *args, **kwds)
 
         self._validate_item(item, validate_type)
-        return item
+        yield item
 
 
 class MatplotlibPreprocessor(Preprocessor):
@@ -95,6 +97,7 @@ class MatplotlibPreprocessor(Preprocessor):
             )
         return values
 
+    @contextmanager
     def apply_on(self, item: Any, validate_type: bool = True) -> BytesIO:
         """
         Applies the func, along with its args and kwds, to the item; additionally, if a
@@ -104,18 +107,18 @@ class MatplotlibPreprocessor(Preprocessor):
             item: The item to apply the function on.
             validate_type: Whether to validate the preprocessed item is correct type.
 
-        Returns:
+        Yields:
             The preprocessed item.
         """
-        item = super().apply_on(item, validate_type=False)
-
-        if plt.gcf().axes:  # if active axes
-            item = BytesIO()
-            plt.savefig(item)
-            plt.close("all")
-
-        self._validate_item(item, validate_type)
-        return item
+        with super().apply_on(item, validate_type=False) as item:
+            if plt.gcf().axes:  # if active axes
+                with BytesIO() as buf:
+                    plt.savefig(buf, format="png")
+                    plt.close("all")
+                    buf.seek(0)
+                    yield buf
+            else:
+                yield item
 
 
 class HoloViewsPreprocessor(Preprocessor):
@@ -134,6 +137,7 @@ class HoloViewsPreprocessor(Preprocessor):
             )
         return values
 
+    @contextmanager
     def apply_on(self, item: Any, validate_type: bool = True) -> BytesIO:
         """
         Applies the func, along with its args and kwds, to the item; additionally, if a
@@ -143,15 +147,38 @@ class HoloViewsPreprocessor(Preprocessor):
             item: The item to apply the function on.
             validate_type: Whether to validate the preprocessed item is correct type.
 
-        Returns:
+        Yields:
             The preprocessed item.
         """
-        item = super().apply_on(item, validate_type=False)
+        with super().apply_on(item, validate_type=False) as item:
+            if isinstance(item, hv.Element):
+                with BytesIO() as buf:
+                    hv.save(item, buf, fmt="png")
+                    buf.seek(0)
+                    yield buf
+            else:
+                yield item
 
-        if isinstance(item, hv.Element):
-            buf = BytesIO()
-            hv.save(item, buf, fmt="png")
-            item = buf
 
-        self._validate_item(item, validate_type)
-        return item
+class NullPreprocessor(Preprocessor):
+    """
+    Used to simplify internal code; does nothing.
+    """
+
+    func: Callable = lambda item: item
+
+    @contextmanager
+    def apply_on(
+        self, item: Any, validate_type: bool = True
+    ) -> Union[Path, str, BytesIO, bytes, np.ndarray]:
+        """
+        Yields back the original item.
+
+        Args:
+            item: The item to apply the function on.
+            validate_type: Whether to validate the preprocessed item is correct type.
+
+        Yields:
+            The item.
+        """
+        yield item
